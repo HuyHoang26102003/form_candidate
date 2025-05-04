@@ -15,99 +15,123 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import api, { submitApplication } from "./services/api";
 
+// Define the form schema with corrected validations
 const formSchema = z.object({
-  fullName: z.string().min(1, "Full name is required"),
-  email: z.string().email("Invalid email address"),
-  position: z.string().min(1, "Please select a position"),
-  level: z.string().min(1, "Please select a level"),
-  resume: z.any(),
+  name: z.string().min(1, "Name is required").max(10, "Name is too long"),
+  contact_phone: z.string().min(1, "Phone number is required"),
+  contact_email: z.string().email("Invalid email address"),
+  job_level_id: z.string().min(1, "Please select a position"),
+  role_id: z.string().min(1, "Please select a job"),
+  resume: z.string().url("Invalid URL"),
 });
 
 export default function App() {
+  const [submittedData, setSubmittedData] = useState<any>(null);
+  const [submitStatus, setSubmitStatus] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<{ id: string; name: string }[]>([]);
+  const [jobLevels, setJobLevels] = useState<{ id: string; name: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false); // State for dialog
+
+  // Initialize form with react-hook-form
   const form = useForm({
     resolver: zodResolver(formSchema),
     mode: "onChange",
     defaultValues: {
-      fullName: "",
-      email: "",
-      position: "",
-      level: "",
-      resume: null,
+      name: "",
+      contact_phone: "",
+      contact_email: "",
+      job_level_id: "",
+      role_id: "",
+      resume: "",
     },
   });
 
-  const [submittedData, setSubmittedData] = useState<any>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [submitStatus, setSubmitStatus] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<{ id: string; name: string }[]>([]);
-  const [jobLevel, setJobLevel] = useState<{ id: string; name: string }[]>([]);
-  const [name, setName] = useState<string>("");
-  const [contactPhone, setContactPhone] = useState<string>("");
-  const [email, setEmail] = useState<string>("");
-  const [roleId, setRoleId] = useState<string>("");
-  const [resume, setResume] = useState<string>("");
-
-
-  const onSubmit = async (data: any) => {
-    const isValid = await form.trigger();
-    if (!isValid) return;
-
+  // Handle form submission
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    console.log("Form submitted with data:", data);
     try {
-      const response = await submitApplication({
-        name: name,
-        contact_email: "0909090",
-        contact_phone: "vcc@concac",
-        role_id: "7721b635-cfd6-4e83-8af4-001bd50cfe30",
-        resume: "gaylord",
-      });
-      setSubmittedData(response);
-      setSubmitStatus("Application submitted successfully!");
-      form.reset(); // Clear form after success
-      setFileName(null); // Clear file name
+      const response = await submitApplication(data);
+      if (response.status === 200 ||  response.status === 201) {
+        setSubmittedData(response.data);
+        setSubmitStatus("Application submitted successfully!");
+        setIsDialogOpen(true); // Open dialog on success
+        form.reset(); // Reset form
+      } else {
+        setSubmitStatus("Unexpected response from server.");
+      }
     } catch (error) {
+      console.error("Submission error:", error);
       setSubmitStatus("Failed to submit application. Please try again.");
     }
   };
 
+  // Fetch jobs and job levels
   const fetchJob = async () => {
-    const response = await api.get("/jobs");
-    if (response.status === 200) {
-      setJobs(response.data);
-    } else {
-      console.error("Error fetching jobs:", response.status);
-    }
-    console.log("check whatresobse", response.status);
-  };
-  const fetchJob_level = async () => {
-    const res = await api.get("/job-levels");
-    if (res.status === 200) {
-      setJobLevel(res.data);
-    } else {
-      console.error("Error fetching job levels:", res.status);
+    try {
+      const response = await api.get("/jobs");
+      if (response.status === 200) {
+        setJobs(response.data);
+      } else {
+        setError("Failed to fetch jobs.");
+      }
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      setError("Failed to fetch jobs.");
     }
   };
 
+  const fetchJobLevel = async () => {
+    try {
+      const response = await api.get("/job-levels");
+      if (response.status === 200) {
+        setJobLevels(response.data);
+      } else {
+        setError("Failed to fetch job levels.");
+      }
+    } catch (error) {
+      console.error("Error fetching job levels:", error);
+      setError("Failed to fetch job levels.");
+    }
+  };
+
+  // Fetch data on mount
   useEffect(() => {
     fetchJob();
-    fetchJob_level();
+    fetchJobLevel();
   }, []);
+
+  // Handle dialog close
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setSubmitStatus(null); // Clear submit status
+  };
 
   return (
     <div className="max-w-xl mx-auto py-10 px-4">
       <h1 className="text-3xl font-semibold mb-6 text-center">
         Job Application Form
       </h1>
+      {error && <p className="text-red-500 text-center">{error}</p>}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
             control={form.control}
-            name="fullName"
+            name="name"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Full Name</FormLabel>
@@ -120,7 +144,7 @@ export default function App() {
           />
           <FormField
             control={form.control}
-            name="email"
+            name="contact_email"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Email</FormLabel>
@@ -137,7 +161,20 @@ export default function App() {
           />
           <FormField
             control={form.control}
-            name="position"
+            name="contact_phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone Number</FormLabel>
+                <FormControl>
+                  <Input type="tel" placeholder="+1234567890" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="role_id"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Job Applied</FormLabel>
@@ -149,7 +186,9 @@ export default function App() {
                   </FormControl>
                   <SelectContent>
                     {jobs.map((item) => (
-                      <SelectItem value={item.id}>{item.name}</SelectItem>
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -159,7 +198,7 @@ export default function App() {
           />
           <FormField
             control={form.control}
-            name="level"
+            name="job_level_id"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Job Level</FormLabel>
@@ -170,8 +209,10 @@ export default function App() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {jobLevel.map((item) => (
-                      <SelectItem value={item.id}>{item.name}</SelectItem>
+                    {jobLevels.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -182,25 +223,16 @@ export default function App() {
           <FormField
             control={form.control}
             name="resume"
-            render={({ field: { onChange } }) => (
+            render={({ field }) => (
               <FormItem>
-                <FormLabel>Upload CV</FormLabel>
+                <FormLabel>Resume Link</FormLabel>
                 <FormControl>
                   <Input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      setFileName(file ? file.name : null);
-                      onChange(file);
-                    }}
+                    type="text"
+                    placeholder="https://example.com/resume.pdf"
+                    {...field}
                   />
                 </FormControl>
-                {fileName && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Selected: {fileName}
-                  </p>
-                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -211,9 +243,29 @@ export default function App() {
           >
             Submit Application
           </Button>
-          {submitStatus && <p className="mt-4 text-center">{submitStatus}</p>}
+          {submitStatus && !isDialogOpen && (
+            <p className="mt-4 text-center">{submitStatus}</p>
+          )}
         </form>
       </Form>
+
+      {/* Success Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Application Submitted!</DialogTitle>
+            <DialogDescription>
+              Your job application has been successfully submitted. We'll get back
+              to you soon.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={handleDialogClose} variant="default">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

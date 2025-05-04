@@ -36,6 +36,7 @@ export const submitApplication = async (data: {
   contact_phone: string;
   contact_email: string;
   role_id: string;
+  job_level_id: string;
   resume: string;
 }) => {
   // const formData = new FormData();
@@ -49,7 +50,7 @@ export const submitApplication = async (data: {
 
   try {
     const response = await api.post("/candidates", data);
-    return response.data;
+    return response;
   } catch (error) {
     throw error;
   }
